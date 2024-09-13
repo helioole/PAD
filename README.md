@@ -68,10 +68,9 @@ Inter-service communication:
 ## Data Management
 ### Sports Management Service
 
-Data of Ongoing Events
+Data of Ongoing Events - Retrieves data on all currently ongoing sports events.
 
     Endpoint: GET /api/sports/ongoing-events
-    Description: Retrieves data on all currently ongoing sports events.
     Request Parameters: None
     Response Format: json
 ```
@@ -101,10 +100,9 @@ Data of Ongoing Events
 
 ```
 
-Choose Category of Sport
+Choose Category of Sport - Retrieves a list of available sport categories.
 
     Endpoint: GET /api/sports/categories
-    Description: Retrieves a list of available sport categories.
     Request Parameters: None
     Response Format: json
 
@@ -118,10 +116,9 @@ Choose Category of Sport
       ]
     }
 
-Score of a Certain Game
+Score of a Certain Game - Retrieves the current score and details for a specific game.
 
     Endpoint: GET /api/sports/games/{game_id}
-    Description: Retrieves the current score and details for a specific game.
     Request Parameters: game_id (path parameter)
     Response Format: json
 
@@ -143,10 +140,9 @@ Score of a Certain Game
       }
     }
 
-Analytics
+Analytics - Retrieves analytics data for ongoing and past sports events.
 
     Endpoint: GET /api/sports/analytics
-    Description: Retrieves analytics data for ongoing and past sports events.
     Request Parameters:
         sport_category (optional): Filter by category.
         time_range (optional): Specify a time range for the analytics.
@@ -180,10 +176,9 @@ Analytics
       }
     }
 
-Join Chatroom
+Join Chatroom - Allows a user to join a discussion chatroom related to a specific game or sport.
 
     Endpoint: POST /api/sports/chatrooms/join
-    Description: Allows a user to join a discussion chatroom related to a specific game or sport.
     Request Body:json
 
 {
@@ -191,9 +186,7 @@ Join Chatroom
   "chatroom_id": "string"
 }
 
-Response Format:
-
-json
+Response Format:json
 
     {
       "status": "success",
@@ -207,10 +200,9 @@ json
       }
     }
 
-List of Chatrooms
+List of Chatrooms - Retrieves a list of available discussion chatrooms.
 
     Endpoint: GET /api/sports/chatrooms
-    Description: Retrieves a list of available discussion chatrooms.
     Request Parameters: None
     Response Format: json
 
@@ -228,9 +220,8 @@ List of Chatrooms
 
 ### User and Notification Service
 
-User Registration
+User Registration - Registers a new user.
         Endpoint: POST /api/users/register
-        Description: Registers a new user.
         Request Body:json
 
 {
@@ -246,10 +237,9 @@ Response Format:json
       "message": "Registration successful"
     }
 
-User Login
+User Login - Authenticates a user and provides a token.
 
     Endpoint: POST /api/users/login
-    Description: Authenticates a user and provides a token.
     Request Body:json
 
 {
@@ -264,14 +254,11 @@ Response Format:json
       "token": "string"
     }
 
-Fetch User Profile
+Fetch User Profile - Fetches user profile details.
 
     Endpoint: GET /api/users/{user_id}
-    Description: Fetches user profile details.
     Request Parameters: user_id (path parameter)
-    Response Format:
-
-    json
+    Response Format:json
 
     {
       "status": "success",
@@ -288,10 +275,9 @@ Fetch User Profile
       }
     }
 
-Update Notification Preferences
+Update Notification Preferences - Updates notification preferences for a user.
 
     Endpoint: PUT /api/users/{user_id}/preferences/notifications
-    Description: Updates notification preferences for a user.
     Request Body: json
 
 {
