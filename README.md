@@ -1,1 +1,331 @@
 # PAD
+>Racovcena Irina, FAF-212
+
+## What are Microservices really all about?
+
+Microservices are an architectural style that structures an application as a collection of loosely coupled, independently deployable services. Each microservice is designed to handle a specific piece of functionality and communicates with other services through well-defined APIs.
+
+Reasons to use microservices:
+* Scalability
+* Fault Isolation
+* Quicker Deployment
+* Tech Agnosticity
+
+Building microservices costs much. That's why it makes sense to use them if you have a big system that requires a lot of maintainance and functionality. It enables team independence which can move fast resulting the blast of failures to be well-contained. Each service could be independently designed, deployed, and scaled. 
+
+### Real-life Examples:
+
+- **LinkedIn** - LinkedIn uses microservices to handle different aspects of its professional networking platform, including profiles, messaging, job recommendations, and feed management. Microservices allow LinkedIn to scale specific services based on user activity and needs, improving performance and reliability.
+
+- **PayPal** - PayPal utilizes microservices for processing payments, managing user accounts, handling transactions, and fraud detection.
+
+- **Twitter** - Twitter uses microservices to handle various functions such as user management, tweet storage, notifications, and search.
+
+## Application Suitability
+**Live Sport Update Platform** is an application for all sport fans who are willing to be aware of all important incoming games from Australian Open to Euro Cup. This app is focused to on providing real-time sports updates allowing users to stay informed about ongoing games, scores, and other relevant information regarding statitisc and comments on the selected sport event. 
+
+The idea of a Live Sports Update Platform is highly relevant due to the increasing demand for real-time sports information and the growing number of sports enthusiasts who expect timely updates. **High volume data** is another reason because data is sourced from various channels, such as sports APIs, which require efficient handling and integration. **Customization and personalization** are another necessity of a modern user. Features like real-time chatrooms or forums can be implemented using distributed systems enhance **user experience**. Also, distributed systems can efficiently integrate with various external sports data APIs, ensuring comprehensive coverage and up-to-date information and **technology flexibility**. 
+
+Benefits of using microservices:
+
+Of course it's **user managemenet** because Users can sign up, log in, and manage their profiles setting preferences for teams, sports. Customizable **subscriptions** to specific teams or matches to receive targeted updates.Moreover, **WebSocket-Based Forums** where users can interact in real-time through a chatroom or forum dedicated to ongoing games or sports discussions. 
+
+Future expansion:
+- Social Media Integration
+- Interactive Features such as polls, quizzes, and interactive content related to ongoing events.
+- Notification system
+- Betting Odds
+- AI-driven voice insights and recommendations for users
+- Event and Venue Information
+
+Similar projects:
+* ESPN
+* Bleacher Report
+* Sofascore
+
+## Service Boundaries
+
+## Technology Stack and Communication Patterns
+Microservice A: Sports Management Service
+
+    Backend: Python Flask
+    Chatrooms: WebSocket 
+    Data Processing: Redis
+
+Microservice B: User and Notification Service
+
+    Backend: Node.js with Express
+    Database: MongoDB
+
+API Gateway:
+
+    Express
+
+Inter-service communication:
+
+    RESTful APIs (CRUD) and gRPC (service discovery)
+
+## Data Management
+### Sports Management Service
+
+Data of Ongoing Events
+
+    Endpoint: GET /api/sports/ongoing-events
+    Description: Retrieves data on all currently ongoing sports events.
+    Request Parameters: None
+    Response Format: json
+```
+    {
+      "status": "success",
+      "data": [
+        {
+          "event_id": "string",
+          "sport_category": "string",
+          "team_1": "string",
+          "team_2": "string",
+          "score_team_1": "integer",
+          "score_team_2": "integer",
+          "event_status": "string",
+          "start_time": "string",
+          "current_period": "string",
+          "event_details": [
+            {
+              "event_time": "string",
+              "event_type": "string",
+              "description": "string"
+            }
+          ]
+        }
+      ]
+    }
+
+```
+
+Choose Category of Sport
+
+    Endpoint: GET /api/sports/categories
+    Description: Retrieves a list of available sport categories.
+    Request Parameters: None
+    Response Format: json
+
+    {
+      "status": "success",
+      "data": [
+        {
+          "category_id": "string",
+          "category_name": "string"
+        }
+      ]
+    }
+
+Score of a Certain Game
+
+    Endpoint: GET /api/sports/games/{game_id}
+    Description: Retrieves the current score and details for a specific game.
+    Request Parameters: game_id (path parameter)
+    Response Format: json
+
+    {
+      "status": "success",
+      "data": {
+        "game_id": "string",
+        "team_1": "string",
+        "team_2": "string",
+        "score_team_1": "integer",
+        "score_team_2": "integer",
+        "event_details": [
+          {
+            "event_time": "string",
+            "event_type": "string",
+            "description": "string"
+          }
+        ]
+      }
+    }
+
+Analytics
+
+    Endpoint: GET /api/sports/analytics
+    Description: Retrieves analytics data for ongoing and past sports events.
+    Request Parameters:
+        sport_category (optional): Filter by category.
+        time_range (optional): Specify a time range for the analytics.
+    Response Format:json
+
+    {
+      "status": "success",
+      "data": {
+        "analytics_summary": {
+          "total_events": "integer",
+          "average_score": "float",
+          "top_teams": [
+            {
+              "team_name": "string",
+              "average_score": "float"
+            }
+          ]
+        },
+        "detailed_reports": [
+          {
+            "report_id": "string",
+            "report_name": "string",
+            "metrics": [
+              {
+                "metric_name": "string",
+                "value": "float"
+              }
+            ]
+          }
+        ]
+      }
+    }
+
+Join Chatroom
+
+    Endpoint: POST /api/sports/chatrooms/join
+    Description: Allows a user to join a discussion chatroom related to a specific game or sport.
+    Request Body:json
+
+{
+  "user_id": "string",
+  "chatroom_id": "string"
+}
+
+Response Format:
+
+json
+
+    {
+      "status": "success",
+      "message": "Joined the lchatroomsuccessfully",
+      "chatroom_details": {
+        "chatroom_id": "string",
+        "chatroom_name": "string",
+        "current_users": [
+          "string"
+        ]
+      }
+    }
+
+List of Chatrooms
+
+    Endpoint: GET /api/sports/chatrooms
+    Description: Retrieves a list of available discussion chatrooms.
+    Request Parameters: None
+    Response Format: json
+
+{
+  "status": "success",
+  "data": [
+    {
+      "lchatroom_id": "string",
+      "chatroom_name": "string",
+      "description": "string",
+      "active_users": "integer"
+    }
+  ]
+}
+
+### User and Notification Service
+
+User Registration
+        Endpoint: POST /api/users/register
+        Description: Registers a new user.
+        Request Body:json
+
+{
+  "username": "string",
+  "password": "string",
+  "email": "string"
+}
+
+Response Format:json
+
+    {
+      "status": "success",
+      "message": "Registration successful"
+    }
+
+User Login
+
+    Endpoint: POST /api/users/login
+    Description: Authenticates a user and provides a token.
+    Request Body:json
+
+{
+  "username": "string",
+  "password": "string"
+}
+
+Response Format:json
+
+    {
+      "status": "success",
+      "token": "string"
+    }
+
+Fetch User Profile
+
+    Endpoint: GET /api/users/{user_id}
+    Description: Fetches user profile details.
+    Request Parameters: user_id (path parameter)
+    Response Format:
+
+    json
+
+    {
+      "status": "success",
+      "data": {
+        "user_id": "string",
+        "username": "string",
+        "email": "string",
+        "preferences": {
+          "notifications": {
+            "enabled": "boolean",
+            "types": ["string"]
+          }
+        }
+      }
+    }
+
+Update Notification Preferences
+
+    Endpoint: PUT /api/users/{user_id}/preferences/notifications
+    Description: Updates notification preferences for a user.
+    Request Body: json
+
+{
+  "enabled": "boolean",
+  "types": ["string"]
+}
+
+Response Format: json
+
+    {
+      "status": "success",
+      "message": "Preferences updated successfully"
+    }
+
+Create and Send Notification
+
+    Endpoint: POST /api/notifications
+    Description: Creates and sends a notification to users.
+    Request Body: json
+```
+{
+  "user_id": "string",
+  "message": "string",
+  "type": "string" // e.g., "score_update", "news", etc.
+}
+```
+Response Format: json
+```
+{
+  "status": "success",
+  "message": "Notification sent successfully"
+}
+```
+
+
+## Deployment & Scaling
+Docker (containerization), Docker Compose (running multi-container applications)
