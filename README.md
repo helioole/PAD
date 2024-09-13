@@ -45,6 +45,13 @@ Similar projects:
 
 ## Service Boundaries
 
+
+![alt text](image-1.png)
+
+**User and Notification Service** focuses on managing user accounts, authentication, and delivering notifications.
+
+**Sports Management Service** manages sports event data, including ongoing games, scores, and analytics. It also supports features related to sports discussions and provides users with real-time information about sports events.
+
 ## Technology Stack and Communication Patterns
 Microservice A: Sports Management Service
 
