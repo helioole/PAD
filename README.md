@@ -292,10 +292,9 @@ Response Format: json
       "message": "Preferences updated successfully"
     }
 
-Create and Send Notification
+Create and Send Notification - Creates and sends a notification to users.
 
     Endpoint: POST /api/notifications
-    Description: Creates and sends a notification to users.
     Request Body: json
 ```
 {
