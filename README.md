@@ -61,7 +61,7 @@ Microservice A: Sports Management Service
 
 Microservice B: User and Notification Service
 
-    Backend: Node.js with Express
+    Backend: Python Flask
     Database: MongoDB
 
 API Gateway:
@@ -70,7 +70,7 @@ API Gateway:
 
 Inter-service communication:
 
-    RESTful APIs (CRUD) and gRPC (service discovery)
+    RESTful APIs (CRUD), WebSocket and gRPC (service discovery)
 
 ## Data Management
 ### Sports Management Service
@@ -80,7 +80,7 @@ Data of Ongoing Events - Retrieves data on all currently ongoing sports events.
     Endpoint: GET /api/sports/ongoing-events
     Request Parameters: None
     Response Format: json
-    
+
 ```
     {
       "status": "success",
@@ -186,7 +186,7 @@ Analytics - Retrieves analytics data for ongoing and past sports events.
 
 Join Chatroom - Allows a user to join a discussion chatroom related to a specific game or sport.
 
-    Endpoint: POST /api/sports/chatrooms/join
+    Endpoint: POST /api/sports/chatrooms/{category_id}
     Request Body:json
 
 ```
@@ -199,9 +199,10 @@ Response Format:json
 
     {
       "status": "success",
-      "message": "Joined the lchatroomsuccessfully",
+      "message": "Joined the chatroom successfully",
       "chatroom_details": {
         "chatroom_id": "string",
+        "category_id": "string",
         "chatroom_name": "string",
         "current_users": [
           "string"
