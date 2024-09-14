@@ -193,6 +193,7 @@ Join Chatroom - Allows a user to join a discussion chatroom related to a specifi
 {
   "user_id": "string",
   "chatroom_id": "string"
+  "category_id": "string",
 }
 ```
 Response Format:json
