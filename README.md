@@ -80,6 +80,7 @@ Data of Ongoing Events - Retrieves data on all currently ongoing sports events.
     Endpoint: GET /api/sports/ongoing-events
     Request Parameters: None
     Response Format: json
+    
 ```
     {
       "status": "success",
@@ -188,11 +189,12 @@ Join Chatroom - Allows a user to join a discussion chatroom related to a specifi
     Endpoint: POST /api/sports/chatrooms/join
     Request Body:json
 
+```
 {
   "user_id": "string",
   "chatroom_id": "string"
 }
-
+```
 Response Format:json
 
     {
@@ -213,6 +215,7 @@ List of Chatrooms - Retrieves a list of available discussion chatrooms.
     Request Parameters: None
     Response Format: json
 
+```
 {
   "status": "success",
   "data": [
@@ -224,6 +227,7 @@ List of Chatrooms - Retrieves a list of available discussion chatrooms.
     }
   ]
 }
+```
 
 ### User and Notification Service
 
@@ -231,11 +235,13 @@ User Registration - Registers a new user.
         Endpoint: POST /api/users/register
         Request Body:json
 
+```
 {
   "username": "string",
   "password": "string",
   "email": "string"
 }
+```
 
 Response Format:json
 
@@ -249,10 +255,12 @@ User Login - Authenticates a user and provides a token.
     Endpoint: POST /api/users/login
     Request Body:json
 
+```
 {
   "username": "string",
   "password": "string"
 }
+```
 
 Response Format:json
 
@@ -287,10 +295,13 @@ Update Notification Preferences - Updates notification preferences for a user.
     Endpoint: PUT /api/users/{user_id}/preferences/notifications
     Request Body: json
 
+```
 {
   "enabled": "boolean",
   "types": ["string"]
 }
+```
+
 
 Response Format: json
 
@@ -311,6 +322,7 @@ Create and Send Notification - Creates and sends a notification to users.
 }
 ```
 Response Format: json
+
 ```
 {
   "status": "success",
