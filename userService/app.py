@@ -14,6 +14,7 @@ SECRET_KEY = 'your_secret_key'
 
 executor = ThreadPoolExecutor(max_workers=2)
 
+# token for authentification
 def token_required(f):
     @wraps(f)
     async def decorated(*args, **kwargs):
@@ -32,9 +33,10 @@ def token_required(f):
         return await f(data, *args, **kwargs)
     return decorated
 
+# Task timeout
 def long_running_registration_task(user_data):
     print("Simulating registration task...")
-    # time.sleep(10)  # Simulate a long-running task with a 10-second delay
+    # time.sleep(10) 
     db.users.insert_one({
         "username": user_data["username"],
         "password": user_data["password"],
@@ -43,23 +45,21 @@ def long_running_registration_task(user_data):
     print("Registration task completed.")
     return {"status": "success", "message": "Registration successful"}
 
-# Route to register a user with task timeout
+# Register a user
 @app.route('/api/users/register', methods=['POST'])
 async def register_user():
     user_data = await request.get_json()
 
-    # Submit the long-running registration task to the executor
     future = executor.submit(long_running_registration_task, user_data)
 
     try:
-        # Wait for the task to complete within 5 seconds
         result = future.result(timeout=5)
         return jsonify(result), 200
     except FuturesTimeoutError: 
         future.cancel()  
         return jsonify({"status": "error", "message": "Task timed out"}), 504
 
-# User login route
+# User login
 @app.route('/api/users/login', methods=['POST'])
 async def login_user():
     login_data = await request.get_json()
@@ -71,7 +71,7 @@ async def login_user():
     else:
         return jsonify({"status": "error", "message": "Invalid username or password"}), 401
 
-# Route to fetch the user's profile (protected with JWT)
+# Fetch the user's profile 
 @app.route('/api/users/me', methods=['GET'])
 @token_required
 async def fetch_user_profile(decoded_data):
@@ -90,7 +90,7 @@ async def fetch_user_profile(decoded_data):
     else:
         return jsonify({"status": "error", "message": "User not found"}), 404
 
-# Route to update notification preferences (protected with JWT)
+# Update notification preferences
 @app.route('/api/users/preferences/notifications', methods=['PUT'])
 @token_required
 async def update_notification_preferences(decoded_data):

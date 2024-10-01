@@ -7,11 +7,11 @@ import redis
 
 app = FastAPI()
 
-# Redis client setup
+# Redis 
 redis_client = redis.Redis(host='localhost', port=6379, decode_responses=True)
 connected_users: List[WebSocket] = []
 
-# Subscribe to Redis channel for incoming messages asynchronously
+# Redis subscribe to a channel
 async def redis_listener():
     pubsub = redis_client.pubsub()
     pubsub.subscribe("chat_channel")
@@ -28,7 +28,6 @@ async def redis_listener():
             print(f"Parsed message data: {data}") 
             await broadcast_to_users(data)
 
-# Function to broadcast messages to all connected users
 async def broadcast_to_users(data):
     if connected_users:
         print(f"Broadcasting message to {len(connected_users)} users")
@@ -41,6 +40,7 @@ async def broadcast_to_users(data):
     else:
         print("No connected users to broadcast to.")
 
+# WS endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -69,5 +69,4 @@ async def startup_event():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="localhost", port=3000)
-
 
