@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   api-gateway:
     build:
@@ -5,41 +7,41 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    environment:
-      SPORTS_SERVICE_URL: http://sports-service:5001
-      USER_SERVICE_URL: http://user-service:5002
     depends_on:
       - sports-service
       - user-service
     networks:
       - app-network
 
-
   sports-service:
     build:
       context: ./sports-service
       dockerfile: Dockerfile
-    ports:
+    expose:
       - "5001:5001"
-    environment:
-      MONGO_URL: mongodb://mongo:27017/sports_database
     depends_on:
       - mongo
     networks:
       - app-network
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
 
   user-service:
     build:
       context: ./user-service
       dockerfile: Dockerfile
-    ports:
+    expose:
       - "5002:5002"
-    environment:
-      MONGO_URL: mongodb://mongo:27017/user_database
     depends_on:
       - mongo
     networks:
       - app-network
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
 
   websocket-service:
     build:
@@ -51,6 +53,10 @@ services:
       - redis
     networks:
       - app-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 
   mongo:
     image: mongo:4.2
