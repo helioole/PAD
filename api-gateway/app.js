@@ -10,7 +10,7 @@ const COOLING_PERIOD = TASK_TIMEOUT * 3.5;
 
 const services = {
   'sports-service': { 
-    urls: ['http://172.19.0.7:5001', 'http://172.19.0.8:5001', 'http://172.19.0.9:5001'],
+    urls: ['http://172.18.0.7:5001', 'http://172.18.0.8:5001', 'http://172.18.0.9:5001'],
     failureCounts: [0, 0, 0],
     isBreakerOpen: [false, false, false],
     lastFailureTimes: [null, null, null],
