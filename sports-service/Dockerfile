@@ -3,10 +3,14 @@ FROM python:3.9
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install -r requirements.txt --timeout=120
+RUN pip install --no-cache-dir -r requirements.txt
+
+RUN pip install protobuf==3.20.3 grpcio grpcio-tools
 
 COPY . .
 
-EXPOSE 5001
+RUN python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. sports_service.proto
+
+EXPOSE 50051
 
 CMD ["python", "app.py"]
