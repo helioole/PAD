@@ -20,8 +20,9 @@ services:
     build:
       context: ./sports-service
       dockerfile: Dockerfile
+    ports:
+      - "5001"
     expose:
-      - "5001:5001"
       - "50051"
     depends_on:
       - mongo

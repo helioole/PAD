@@ -39,7 +39,7 @@ def token_required(f):
 # Task timeout
 def long_running_registration_task(user_data):
     print("Simulating registration task...")
-    # time.sleep(6)
+    time.sleep(6)
     db.users.insert_one({
         "username": user_data["username"],
         "password": user_data["password"],

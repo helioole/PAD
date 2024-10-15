@@ -12,25 +12,28 @@ const COOLING_PERIOD = TASK_TIMEOUT * 3.5;
 
 app.use(express.json());
 
+
 const services = {
   'sports-service': { 
     url: process.env.SPORTS_SERVICE_URL || 'http://sports-service:5001',
     status: 'unknown',
-    urls: ['http://172.18.0.7:5001', 'http://172.18.0.8:5001', 'http://172.18.0.9:5001'],
-    failureCounts: [0, 0, 0],
-    isBreakerOpen: [false, false, false],
-    lastFailureTimes: [null, null, null],
-    loadCounters: [0, 0, 0],
-    containerIds: ['pad-sports-service-1', 'pad-sports-service-2', 'pad-sports-service-3'],
+    urls: [], 
+    failureCounts: [],
+    isBreakerOpen: [],
+    lastFailureTimes: [],
+    loadCounters: [],
+    containerIds: [],
     currentIndex: 0 
   },
   'user-service': { 
     url: process.env.USER_SERVICE_URL || 'http://user-service:5002',
     status: 'unknown',
-    urls: ['http://172.18.0.10:5002', 'http://172.18.0.11:5002', 'http://172.18.0.12:5002'],
-    failureCounts: [0, 0, 0],
-    isBreakerOpen: [false, false, false],
-    lastFailureTimes: [null, null, null],
+    urls: [], 
+    failureCounts: [],
+    isBreakerOpen: [],
+    lastFailureTimes: [],
+    loadCounters: [],
+    containerIds: [],
     currentIndex: 0 
   }
 };
@@ -75,24 +78,26 @@ async function getServiceLoad(service) {
 function getLeastLoadedService(serviceName) {
   const service = services[serviceName];
   if (!service) {
-      throw new Error(`Service ${serviceName} is not defined`);
+    throw new Error(`Service ${serviceName} is not defined`);
   }
-  
+
   let leastLoadedReplica = null;
   let minLoad = Infinity;
 
   service.urls.forEach((replicaUrl, index) => {
-      const currentLoad = service.loadCounters[index]; 
-      if (!service.isBreakerOpen[index] && currentLoad < minLoad) {
-          minLoad = currentLoad;
-          leastLoadedReplica = { url: replicaUrl, currentLoad };
-      }
+    const currentLoad = service.loadCounters[index];
+    if (!service.isBreakerOpen[index] && currentLoad < minLoad) {
+      minLoad = currentLoad;
+      leastLoadedReplica = { url: replicaUrl, currentLoad };
+      console.log(`Candidate for least loaded replica: ${replicaUrl} with load: ${currentLoad}`);
+    }
   });
 
   if (leastLoadedReplica) {
-      return leastLoadedReplica;
+    console.log(`Least loaded replica chosen: ${leastLoadedReplica.url} with load: ${leastLoadedReplica.currentLoad}`);
+    return leastLoadedReplica;
   } else {
-      throw new Error(`All replicas for ${serviceName} are down or unavailable`);
+    throw new Error(`All replicas for ${serviceName} are down or unavailable`);
   }
 }
 
@@ -108,33 +113,96 @@ function sendMultipleRequests(count) {
   }
 }
 
+function initializeServiceProperties(service) {
+  const replicaCount = service.urls.length;
+
+  service.failureCounts = new Array(replicaCount).fill(0);
+  service.isBreakerOpen = new Array(replicaCount).fill(false);
+  service.lastFailureTimes = new Array(replicaCount).fill(null);
+  service.loadCounters = new Array(replicaCount).fill(0);
+
+  console.log(`Service properties initialized for ${replicaCount} replicas.`);
+}
+async function updateServiceUrls(serviceName) {
+  try {
+    const service = services[serviceName];
+    const containers = await docker.listContainers({ all: false });
+
+    service.urls = [];
+    service.containerIds = [];
+
+    containers.forEach(container => {
+      const containerName = container.Names[0];
+
+      if (containerName.includes(serviceName)) {
+        const networkInfo = container.NetworkSettings.Networks['pad_app-network']; 
+
+        if (networkInfo && networkInfo.IPAddress) {
+          const containerIp = networkInfo.IPAddress;
+          const containerPort = 5001;
+
+          const serviceUrl = `http://${containerIp}:${containerPort}`;
+
+          service.urls.push(serviceUrl);
+          service.containerIds.push(container.Id);
+        }
+      }
+    });
+
+    initializeServiceProperties(service);
+
+    console.log(`Updated URLs for ${serviceName}: `, service.urls);
+  } catch (error) {
+    console.error(`Failed to update service URLs for ${serviceName}: `, error.message);
+  }
+}
+
+
 // Circuit Breaker logic with Alerts and Service removal
 async function handleCircuitBreaker(service, serviceName, replicaIndex) {
   const now = Date.now();
+
+  console.log(`Checking circuit breaker for ${serviceName}, replica ${replicaIndex}...`);
+  console.log(`Failure count: ${service.failureCounts[replicaIndex]}, Threshold: ${CIRCUIT_BREAKER_THRESHOLD}`);
 
   if (service.isBreakerOpen[replicaIndex] && (now - service.lastFailureTimes[replicaIndex]) > COOLING_PERIOD) {
     console.log(`${serviceName} replica ${replicaIndex} breaker cooling period ended. Resetting breaker.`);
     service.failureCounts[replicaIndex] = 0;
     service.isBreakerOpen[replicaIndex] = false;
     service.lastFailureTimes[replicaIndex] = null;
+    return;
   }
 
   if (service.failureCounts[replicaIndex] >= CIRCUIT_BREAKER_THRESHOLD) {
     if (!service.isBreakerOpen[replicaIndex]) {
       console.error(`ALERT: ${serviceName} replica ${replicaIndex} Circuit Breaker tripped due to ${CIRCUIT_BREAKER_THRESHOLD} consecutive failures.`);
     }
+
     service.isBreakerOpen[replicaIndex] = true;
     service.lastFailureTimes[replicaIndex] = now;
 
     const containerId = service.containerIds[replicaIndex];
-    console.log(`Stopping container ${containerId}...`);
+    console.log(`Stopping and removing Docker container for IP: ${service.urls[replicaIndex]} with container ID: ${containerId}...`);
 
     try {
       const container = docker.getContainer(containerId);
       await container.stop();
       console.log(`Container ${containerId} stopped successfully.`);
+
+      await container.remove();
+      console.log(`Container ${containerId} removed successfully.`);
+
+      service.urls.splice(replicaIndex, 1);
+      service.failureCounts.splice(replicaIndex, 1);
+      service.isBreakerOpen.splice(replicaIndex, 1);
+      service.lastFailureTimes.splice(replicaIndex, 1);
+      service.loadCounters.splice(replicaIndex, 1);
+      service.containerIds.splice(replicaIndex, 1);
+
+      console.log(`Replica ${replicaIndex} removed from ${serviceName} service configuration.`);
+
     } catch (err) {
-      console.error(`Failed to stop container ${containerId}:`, err.message);
+      console.error(`Failed to stop or remove Docker container ${containerId}:`, err.message);
     }
   }
 }
@@ -145,6 +213,10 @@ async function makeThreeRequests(serviceUrl, replicaIndex) {
 
   for (let i = 0; i < 3; i++) {
     try {
+      if (replicaIndex === 0) {
+        throw new Error(`Simulated failure for replica ${replicaIndex}`);
+      }
+
       console.log(`Attempt ${i + 1}: Sending request to ${serviceUrl}/status`);
       const response = await axios.get(`${serviceUrl}/status`);
 
@@ -163,9 +235,12 @@ async function makeThreeRequests(serviceUrl, replicaIndex) {
 
   console.log(`Total failures after 3 attempts: ${failureCount}`);
   const service = services['sports-service'];
+
   service.failureCounts[replicaIndex] += failureCount;
 
-  handleCircuitBreaker(service, 'sports-service', replicaIndex);
+  console.log(`Failure count for replica ${replicaIndex}: ${service.failureCounts[replicaIndex]}`);
+
+  await handleCircuitBreaker(service, 'sports-service', replicaIndex);
 }
 
 // Endpoint to test all sports-service replicas
@@ -195,11 +270,16 @@ async function checkServiceHealth(serviceName, serviceUrl) {
 // Periodically check the health of services
 setInterval(() => {
   Object.keys(services).forEach(serviceName => {
-      checkServiceHealth(serviceName, services[serviceName].url);
+    updateServiceUrls(serviceName);
   });
 }, 30000);
 
-// Function to get available service URL
+(async () => {
+  await updateServiceUrls('sports-service');
+  await updateServiceUrls('user-service');
+})();
+
+// Helper function to get available service URL
 function getAvailableService(serviceName) {
   const service = services[serviceName];
 
@@ -213,6 +293,24 @@ function getAvailableService(serviceName) {
     throw new Error(`${serviceName} is currently unhealthy`);
   }
 }
+
+app.get('/test-replicas', async (req, res) => {
+  try {
+    const serviceName = 'sports-service';
+    const service = services[serviceName];
+    
+    for (let i = 0; i < service.urls.length; i++) {
+      console.log(`Testing replica ${i + 1} at URL: ${service.urls[i]}`);
+      await makeThreeRequests(service.urls[i], i);
+    }
+
+    res.json({ message: 'Replica testing completed' });
+  } catch (error) {
+    console.error(`Error testing replicas: `, error.message);
+    res.status(500).json({ message: 'Replica testing failed' });
+  }
+});
+
 
 // Proxy for sport service
 app.use('/api/sports', async (req, res, next) => {
@@ -238,6 +336,7 @@ app.use('/api/sports', async (req, res, next) => {
   }
 });
 
+
 // Proxy for user service
 app.use('/api/users', (req, res, next) => {
   try {
@@ -262,10 +361,10 @@ app.get('/status', (req, res) => {
 });
 
 app.get('/send-multiple-grpc-pings', (req, res) => {
-    const numRequests = parseInt(req.query.count, 10) || 10;
-    sendMultipleRequests(numRequests);
-    res.json({ message: `Started sending ${numRequests} gRPC requests.` });
-  });
+  const numRequests = parseInt(req.query.count, 10) || 10;
+  sendMultipleRequests(numRequests);
+  res.json({ message: `Started sending ${numRequests} gRPC requests.` });
+});
 
 app.listen(8000, () => {
   console.log(`API Gateway running on port 8000`);
