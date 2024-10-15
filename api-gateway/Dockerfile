@@ -5,6 +5,8 @@ WORKDIR /app
 COPY package.json .
 RUN npm install
 RUN npm install @grpc/grpc-js
+RUN npm install express-http-proxy
+RUN npm install dockerode
 
 COPY . .
 

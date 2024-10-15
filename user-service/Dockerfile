@@ -12,4 +12,5 @@ ENV PYTHONPATH=/app
 
 EXPOSE 5002
 
-CMD ["pytest", "--maxfail=1", "--disable-warnings", "-v"]
+CMD ["python", "app.py"]
+# CMD ["pytest", "--maxfail=1", "--disable-warnings", "-v"]

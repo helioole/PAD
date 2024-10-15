@@ -7,6 +7,7 @@ WORKDIR /app
 # Install the necessary Python libraries
 COPY requirements.txt .
 RUN pip install -r requirements.txt --timeout=120
+RUN pip install uvicorn[standard] websockets
 
 # Copy the rest of the application code
 COPY . .

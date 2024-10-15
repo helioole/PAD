@@ -5,9 +5,14 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock 
     depends_on:
       - sports-service
       - user-service
+    environment:
+      - SPORTS_SERVICE_URL=http://sports-service:5001
+      - USER_SERVICE_URL=http://user-service:5002
     networks:
       - app-network
 
@@ -37,8 +42,8 @@ services:
       context: ./user-service
     volumes:
       - ./user-service:/app
-    # command: python app.py
-    command: pytest tests/user_service_test.py --maxfail=1 --disable-warnings -v
+    command: python app.py
+    # command: pytest tests/user_service_test.py --maxfail=1 --disable-warnings -v
     expose:
       - "5002:5002"
     depends_on:
@@ -81,6 +86,12 @@ services:
     networks:
       - app-network
 
+  user-service-tests:
+    build:
+      context: ./user-service
+    command: pytest --maxfail=1 --disable-warnings -v
+    depends_on:
+      - user-service
 networks:
   app-network:
     driver: bridge

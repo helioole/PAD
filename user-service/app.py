@@ -9,7 +9,7 @@ import unittest
 
 app = Flask(__name__)
 
-client = MongoClient(os.getenv('MONGO_URL'))
+client = MongoClient('mongodb://mongo:27017/')
 
 db = client['user_database']
 
@@ -39,6 +39,7 @@ def token_required(f):
 # Task timeout
 def long_running_registration_task(user_data):
     print("Simulating registration task...")
+    # time.sleep(6)
     db.users.insert_one({
         "username": user_data["username"],
         "password": user_data["password"],
@@ -111,4 +112,3 @@ def status():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5002, debug=True)
-
