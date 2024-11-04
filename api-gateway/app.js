@@ -139,7 +139,7 @@ async function updateServiceUrls(serviceName) {
 
         if (networkInfo && networkInfo.IPAddress) {
           const containerIp = networkInfo.IPAddress;
-          const containerPort = 5001;
+          const containerPort = serviceName === 'user-service' ? 5002 : 5001; 
 
           const serviceUrl = `http://${containerIp}:${containerPort}`;
 
@@ -338,16 +338,22 @@ app.use('/api/sports', async (req, res, next) => {
 
 
 // Proxy for user service
-app.use('/api/users', (req, res, next) => {
+app.use('/api/users', async (req, res, next) => {
   try {
-      const userServiceUrl = getAvailableService('user-service');
+    const userServiceUrl = services['user-service'].url;
+    await checkServiceHealth('user-service', userServiceUrl); 
+
+    if (services['user-service'].status === 'healthy') {
       proxy(userServiceUrl, {
-          proxyReqPathResolver: function (req) {
-              return '/api/users' + req.url;
-          }
+        proxyReqPathResolver: (req) => {
+          return '/api/users' + req.url;
+        }
       })(req, res, next);
+    } else {
+      res.status(503).json({ message: 'User-service is currently unhealthy' });
+    }
   } catch (error) {
-      res.status(503).json({ message: error.message });
+    res.status(503).json({ message: error.message });
   }
 });
 

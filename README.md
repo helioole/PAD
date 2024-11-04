@@ -1,6 +1,14 @@
 # PAD
 >Racovcena Irina, FAF-212
 
+## Running and Deploying 
+To run the project install and run Docker. After that run the following commands:
+
+```
+docker-compose build
+docker-compose up
+```
+
 ## What are Microservices really all about?
 
 Microservices are an architectural style that structures an application as a collection of loosely coupled, independently deployable services. Each microservice is designed to handle a specific piece of functionality and communicates with other services through well-defined APIs.
@@ -75,6 +83,32 @@ Inter-service communication:
 ## Data Management
 ### Sports Management Service
 
+Post an event - Post a new event with related details. This is the entry point for the sport service, as all other endpoint imply the existance of at least one event.
+    
+    Endpoint: POST /api/sports/events
+    Request Body: json
+```
+{
+  "event_id": "string",
+  "sport_category": "string",
+  "team_1": "string",
+  "team_2": "string",
+  "score_team_1": int,
+  "score_team_2": int,
+  "event_status": "string"
+}
+```
+
+Response Format: json
+
+```
+{
+  "event_id": "string",
+  "message": "Event added",
+  "status": "success"
+}
+```
+
 Data of Ongoing Events - Retrieves data on all currently ongoing sports events.
 
     Endpoint: GET /api/sports/ongoing-events
@@ -82,30 +116,18 @@ Data of Ongoing Events - Retrieves data on all currently ongoing sports events.
     Response Format: json
 
 ```
-    {
-      "status": "success",
-      "data": [
+{
+    "data": [
         {
-          "event_id": "string",
-          "sport_category": "string",
-          "team_1": "string",
-          "team_2": "string",
-          "score_team_1": "integer",
-          "score_team_2": "integer",
-          "event_status": "string",
-          "start_time": "string",
-          "current_period": "string",
-          "event_details": [
-            {
-              "event_time": "string",
-              "event_type": "string",
-              "description": "string"
-            }
-          ]
+            "score_team_1": int,
+            "score_team_2": int,
+            "sport_category": "string",
+            "team_1": "string",
+            "team_2": "string"
         }
-      ]
-    }
-
+    ],
+    "status": "success"
+}
 ```
 
 Choose Category of Sport - Retrieves a list of available sport categories.
@@ -114,128 +136,55 @@ Choose Category of Sport - Retrieves a list of available sport categories.
     Request Parameters: None
     Response Format: json
 
+```
+{
+  "status": "success",
+  "data": [
     {
-      "status": "success",
-      "data": [
-        {
-          "category_id": "string",
-          "category_name": "string"
-        }
-      ]
+      "category_id": "string",
+      "category_name": "string"
     }
+  ]
+}
+```
 
 Score of a Certain Game - Retrieves the current score and details for a specific game.
 
     Endpoint: GET /api/sports/games/{game_id}
     Request Parameters: game_id (path parameter)
     Response Format: json
-
-    {
-      "status": "success",
-      "data": {
-        "game_id": "string",
-        "team_1": "string",
-        "team_2": "string",
-        "score_team_1": "integer",
-        "score_team_2": "integer",
-        "event_details": [
-          {
-            "event_time": "string",
-            "event_type": "string",
-            "description": "string"
-          }
-        ]
-      }
-    }
-
-Analytics - Retrieves analytics data for ongoing and past sports events.
-
-    Endpoint: GET /api/sports/analytics
-    Request Parameters:
-        sport_category (optional): Filter by category.
-        time_range (optional): Specify a time range for the analytics.
-    Response Format:json
-
-    {
-      "status": "success",
-      "data": {
-        "analytics_summary": {
-          "total_events": "integer",
-          "average_score": "float",
-          "top_teams": [
-            {
-              "team_name": "string",
-              "average_score": "float"
-            }
-          ]
-        },
-        "detailed_reports": [
-          {
-            "report_id": "string",
-            "report_name": "string",
-            "metrics": [
-              {
-                "metric_name": "string",
-                "value": "float"
-              }
-            ]
-          }
-        ]
-      }
-    }
+```
+{
+  "data": {
+      "game_id": "string",
+      "score_team_1": int,
+      "score_team_2": int,
+      "status": "string",
+      "team_1": "string",
+      "team_2": "string"
+  },
+  "status": "success"
+}
+```
 
 Join Chatroom - Allows a user to join a discussion chatroom related to a specific game or sport.
 
-    Endpoint: POST /api/sports/chatrooms/{category_id}
+    Endpoint: ws://localhost:3000/ws
     Request Body:json
 
 ```
 {
-  "user_id": "string",
-  "chatroom_id": "string"
-  "category_id": "string",
-}
-```
-Response Format:json
-
-    {
-      "status": "success",
-      "message": "Joined the chatroom successfully",
-      "chatroom_details": {
-        "chatroom_id": "string",
-        "category_id": "string",
-        "chatroom_name": "string",
-        "current_users": [
-          "string"
-        ]
-      }
-    }
-
-List of Chatrooms - Retrieves a list of available discussion chatrooms.
-
-    Endpoint: GET /api/sports/chatrooms
-    Request Parameters: None
-    Response Format: json
-
-```
-{
-  "status": "success",
-  "data": [
-    {
-      "lchatroom_id": "string",
-      "chatroom_name": "string",
-      "description": "string",
-      "active_users": "integer"
-    }
-  ]
+  "user_id": "string", 
+  "content": "string"
 }
 ```
 
 ### User and Notification Service
 
-User Registration - Registers a new user.
-        Endpoint: POST /api/users/register
-        Request Body:json
+User Registration - Registers a new user. This has to be the first endpoint requested as all other endpoint manipulate with user data.
+        
+    Endpoint: POST /api/users/register
+    Request Body:json
 
 ```
 {
@@ -252,7 +201,7 @@ Response Format:json
       "message": "Registration successful"
     }
 
-User Login - Authenticates a user and provides a token.
+User Login - Authenticates a user and provides a token. This is the second endpoint as it generates a token needed for all other endpoints.
 
     Endpoint: POST /api/users/login
     Request Body:json
@@ -266,71 +215,49 @@ User Login - Authenticates a user and provides a token.
 
 Response Format:json
 
-    {
-      "status": "success",
-      "token": "string"
-    }
-
-Fetch User Profile - Fetches user profile details.
-
-    Endpoint: GET /api/users/{user_id}
-    Request Parameters: user_id (path parameter)
-    Response Format:json
-
-    {
-      "status": "success",
-      "data": {
-        "user_id": "string",
-        "username": "string",
-        "email": "string",
-        "preferences": {
-          "notifications": {
-            "enabled": "boolean",
-            "types": ["string"]
-          }
-        }
-      }
-    }
-
-Update Notification Preferences - Updates notification preferences for a user.
-
-    Endpoint: PUT /api/users/{user_id}/preferences/notifications
-    Request Body: json
-
-```
-{
-  "enabled": "boolean",
-  "types": ["string"]
-}
-```
-
-
-Response Format: json
-
-    {
-      "status": "success",
-      "message": "Preferences updated successfully"
-    }
-
-Create and Send Notification - Creates and sends a notification to users.
-
-    Endpoint: POST /api/notifications
-    Request Body: json
-```
-{
-  "user_id": "string",
-  "message": "string",
-  "type": "string" // e.g., "score_update", "news", etc.
-}
-```
-Response Format: json
-
 ```
 {
   "status": "success",
-  "message": "Notification sent successfully"
+  "token": "string"
 }
 ```
+
+Get me - fetch authorized user profile details
+
+
+    Endpoint: GET /api/users/me
+    Request Body: None
+    Response Format:json
+
+```
+{
+    "data": {
+        "email": "string",
+        "user_id": "string",
+        "username": "string"
+    },
+    "status": "success"
+}
+```
+
+Update Notification Preferences - Updates notification preferences for a user.
+
+    Endpoint: PUT /api/users/preferences/notifications
+    Request Body: json
+
+```
+{
+  "email_notifications": boolean,
+  "sms_notifications": boolean
+}
+```
+
+Response Format: json
+
+    {
+      "status": "success",
+      "message": "Notification preferences updated"
+    }
 
 
 ## Deployment & Scaling
@@ -346,6 +273,8 @@ Here's the new Architecture Diagram of the System:
 **High availability** is ensured across multiple components, including caching, databases, and the ELK stack, with redundancy and fault-tolerance mechanisms in place.
 
 The architecture includes an **ELK Stack (Elasticsearch, Logstash, and Kibana)** for logging and aggregation. It aggregates logs from all services, providing a centralized logging system for monitoring and troubleshooting.
+
+The **Saga Coordinator** located in the API Gateway is responsible for managing distributed transactions. It handles 2-Phase Commits for operations requiring atomicity across multiple services and databases.
 
 **Consistent hashing** is applied to the Redis Cache layer, allowing data distribution across multiple cache nodes, which aids in cache scalability and fault tolerance.
 
