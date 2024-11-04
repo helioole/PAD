@@ -46,7 +46,7 @@ Similar projects:
 ## Service Boundaries
 
 
-![alt text](image-1.png)
+![alt text](images/image-1.png)
 
 **User and Notification Service** focuses on managing user accounts, authentication, and delivering notifications.
 
@@ -335,3 +335,26 @@ Response Format: json
 
 ## Deployment & Scaling
 Docker (containerization), Docker Compose (running multi-container applications)
+
+
+## Uptated Service Boundaries Diagram:
+
+Here's the new Architecture Diagram of the System:
+
+![alt text](<images/lab2 checkpoint 1.png>)
+
+**High availability** is ensured across multiple components, including caching, databases, and the ELK stack, with redundancy and fault-tolerance mechanisms in place.
+
+The architecture includes an **ELK Stack (Elasticsearch, Logstash, and Kibana)** for logging and aggregation. It aggregates logs from all services, providing a centralized logging system for monitoring and troubleshooting.
+
+The **Saga Coordinator** located in the API Gateway is responsible for managing distributed transactions. It handles 2-Phase Commits for operations requiring atomicity across multiple services and databases.
+
+**Consistent hashing** is applied to the Redis Cache layer, allowing data distribution across multiple cache nodes, which aids in cache scalability and fault tolerance.
+
+The **Redis Cache** is configured with high availability, ensuring that cache data remains accessible even if individual cache nodes fail. This setup helps in maintaining system performance.
+
+Instead of strict 2-Phase Commits for all transactions, **Saga transactions** are implemented to handle long-running workflows. The Saga Coordinator orchestrates these transactions, providing eventual consistency and handling compensating actions in case of partial failures.
+
+The User Database is set up in a master-replica configuration, with one master and two replicas **(User DB Master, User DB 1, User DB 2)**. This setup provides redundancy and ensures high availability by enabling failover if the master node fails.
+
+A **Data Warehouse** is included in the architecture. Data is periodically updated from the operational databases to the warehouse via an ETL (Extract, Transform, Load) process, with a Staging Area serving as a buffer. This setup allows for efficient data analysis and reporting without impacting the primary databases.
