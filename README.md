@@ -274,8 +274,6 @@ Here's the new Architecture Diagram of the System:
 
 The architecture includes an **ELK Stack (Elasticsearch, Logstash, and Kibana)** for logging and aggregation. It aggregates logs from all services, providing a centralized logging system for monitoring and troubleshooting.
 
-The **Saga Coordinator** located in the API Gateway is responsible for managing distributed transactions. It handles 2-Phase Commits for operations requiring atomicity across multiple services and databases.
-
 **Consistent hashing** is applied to the Redis Cache layer, allowing data distribution across multiple cache nodes, which aids in cache scalability and fault tolerance.
 
 The **Redis Cache** is configured with high availability, ensuring that cache data remains accessible even if individual cache nodes fail. This setup helps in maintaining system performance.
