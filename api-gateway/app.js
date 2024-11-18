@@ -5,6 +5,8 @@ const proxy = require('express-http-proxy');
 const Docker = require('dockerode');
 const docker = new Docker();
 const app = express();
+const client = require('prom-client');
+const { v4: uuidv4 } = require('uuid');
 
 const CIRCUIT_BREAKER_THRESHOLD = 3; 
 const TASK_TIMEOUT = 5000;
@@ -12,6 +14,26 @@ const COOLING_PERIOD = TASK_TIMEOUT * 3.5;
 
 app.use(express.json());
 
+// Prometheus
+const register = new client.Registry();
+client.collectDefaultMetrics({ register });
+
+const httpRequestCounter = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Count of total HTTP requests',
+  labelNames: ['method', 'path'],
+});
+register.registerMetric(httpRequestCounter);
+
+app.use((req, res, next) => {
+  httpRequestCounter.labels(req.method, req.path).inc();
+  next();
+});
+
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
+});
 
 const services = {
   'sports-service': { 
@@ -37,6 +59,54 @@ const services = {
     currentIndex: 0 
   }
 };
+
+// Helper function for compensation
+async function compensate(sagaId, userId, eventId) {
+  console.log(`Compensating for Saga ${sagaId}...`);
+  try {
+    if (userId) {
+      await axios.delete(`${services['user-service'].url}/api/users/${userId}`);
+      console.log(`Rolled back user: ${userId}`);
+    }
+    if (eventId) {
+      await axios.delete(`${services['sports-service'].url}/api/sports/events/${eventId}`);
+      console.log(`Rolled back event: ${eventId}`);
+    }
+  } catch (error) {
+    console.error(`Compensation failed: ${error.message}`);
+  }
+}
+
+// Saga Orchestrator Endpoint
+app.post('/api/saga/create', async (req, res) => {
+  const sagaId = uuidv4();
+  const { userData, eventData } = req.body;
+
+  let userId = null;
+  let eventId = null;
+
+  try {
+    // Step 1: Create User
+    const userResponse = await axios.post(`${services['user-service'].url}/api/users/register`, userData);
+    userId = userResponse.data.userId;
+
+    // Step 2: Create Event
+    const eventResponse = await axios.post(`${services['sports-service'].url}/api/sports/events`, eventData);
+    eventId = eventResponse.data.eventId;
+
+    // Saga Completed
+    res.status(200).json({
+      message: 'Saga completed successfully',
+      sagaId,
+      userId,
+      eventId,
+    });
+  } catch (error) {
+    console.error(`Saga failed: ${error.message}`);
+    await compensate(sagaId, userId, eventId);
+    res.status(500).json({ error: 'Saga failed and changes were rolled back' });
+  }
+});
 
 const CRITICAL_LOAD_THRESHOLD = 5;
 let loadCounter = 0;
@@ -123,6 +193,7 @@ function initializeServiceProperties(service) {
 
   console.log(`Service properties initialized for ${replicaCount} replicas.`);
 }
+
 async function updateServiceUrls(serviceName) {
   try {
     const service = services[serviceName];
@@ -142,31 +213,33 @@ async function updateServiceUrls(serviceName) {
           const containerPort = serviceName === 'user-service' ? 5002 : 5001; 
 
           const serviceUrl = `http://${containerIp}:${containerPort}`;
-
           service.urls.push(serviceUrl);
           service.containerIds.push(container.Id);
         }
       }
     });
 
+    console.log(`Updated URLs for ${serviceName}:`, service.urls);
+
     initializeServiceProperties(service);
 
-    console.log(`Updated URLs for ${serviceName}: `, service.urls);
+    if (!service.urls.length) {
+      console.warn(`No replicas found for ${serviceName}.`);
+    }
   } catch (error) {
-    console.error(`Failed to update service URLs for ${serviceName}: `, error.message);
+    console.error(`Failed to update service URLs for ${serviceName}:`, error.message);
   }
 }
-
 
 // Circuit Breaker logic with Alerts and Service removal
 async function handleCircuitBreaker(service, serviceName, replicaIndex) {
   const now = Date.now();
 
-  console.log(`Checking circuit breaker for ${serviceName}, replica ${replicaIndex}...`);
+  console.log(`Checking circuit breaker for ${serviceName}, replica at ${service.urls[replicaIndex]}...`);
   console.log(`Failure count: ${service.failureCounts[replicaIndex]}, Threshold: ${CIRCUIT_BREAKER_THRESHOLD}`);
 
   if (service.isBreakerOpen[replicaIndex] && (now - service.lastFailureTimes[replicaIndex]) > COOLING_PERIOD) {
-    console.log(`${serviceName} replica ${replicaIndex} breaker cooling period ended. Resetting breaker.`);
+    console.log(`Cooling period ended for ${service.urls[replicaIndex]}. Resetting breaker.`);
     service.failureCounts[replicaIndex] = 0;
     service.isBreakerOpen[replicaIndex] = false;
     service.lastFailureTimes[replicaIndex] = null;
@@ -174,12 +247,7 @@ async function handleCircuitBreaker(service, serviceName, replicaIndex) {
   }
 
   if (service.failureCounts[replicaIndex] >= CIRCUIT_BREAKER_THRESHOLD) {
-    if (!service.isBreakerOpen[replicaIndex]) {
-      console.error(`ALERT: ${serviceName} replica ${replicaIndex} Circuit Breaker tripped due to ${CIRCUIT_BREAKER_THRESHOLD} consecutive failures.`);
-    }
-
-    service.isBreakerOpen[replicaIndex] = true;
-    service.lastFailureTimes[replicaIndex] = now;
+    console.error(`ALERT: Circuit breaker tripped for replica at ${service.urls[replicaIndex]}.`);
 
     const containerId = service.containerIds[replicaIndex];
     console.log(`Stopping and removing Docker container for IP: ${service.urls[replicaIndex]} with container ID: ${containerId}...`);
@@ -192,64 +260,131 @@ async function handleCircuitBreaker(service, serviceName, replicaIndex) {
       await container.remove();
       console.log(`Container ${containerId} removed successfully.`);
 
-      service.urls.splice(replicaIndex, 1);
+      // Remove the replica from service properties
+      const removedReplica = service.urls.splice(replicaIndex, 1);
       service.failureCounts.splice(replicaIndex, 1);
       service.isBreakerOpen.splice(replicaIndex, 1);
       service.lastFailureTimes.splice(replicaIndex, 1);
       service.loadCounters.splice(replicaIndex, 1);
       service.containerIds.splice(replicaIndex, 1);
 
-      console.log(`Replica ${replicaIndex} removed from ${serviceName} service configuration.`);
-
+      console.log(`Replica ${removedReplica} removed from ${serviceName} service configuration.`);
     } catch (err) {
       console.error(`Failed to stop or remove Docker container ${containerId}:`, err.message);
     }
   }
 }
 
-// Function to send 3 requests to a sports-service replica
-async function makeThreeRequests(serviceUrl, replicaIndex) {
+async function makeThreeRequests(serviceName, replicaIndex) {
+  const service = services[serviceName];
+  const replicaUrl = service.urls[replicaIndex];
   let failureCount = 0;
 
-  for (let i = 0; i < 3; i++) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      if (replicaIndex === 0) {
-        throw new Error(`Simulated failure for replica ${replicaIndex}`);
+      console.log(`Attempt ${attempt}: Sending request to ${replicaUrl} (Replica ${replicaIndex + 1})...`);
+
+      const response = await axios.get(`${replicaUrl}/simulate-failure`);
+
+      if (response.data.success === false || response.status !== 200) {
+        throw new Error("Simulated failure based on endpoint response");
       }
 
-      console.log(`Attempt ${i + 1}: Sending request to ${serviceUrl}/status`);
-      const response = await axios.get(`${serviceUrl}/status`);
-
-      if (response.status !== 200) {
-        console.log(`Attempt ${i + 1} failed with status: ${response.status}`);
-        failureCount++;
-      } else {
-        console.log(`Attempt ${i + 1} succeeded with status: ${response.status}`);
-      }
+      console.log(`Attempt ${attempt} succeeded for replica ${replicaIndex + 1}.`);
+      service.failureCounts[replicaIndex] = 0;
+      return true;
 
     } catch (error) {
-      console.error(`Attempt ${i + 1} encountered an error: ${error.message}`);
+      console.error(`Attempt ${attempt} for replica ${replicaIndex + 1} failed: ${error.message}`);
       failureCount++;
+      service.failureCounts[replicaIndex]++;
     }
   }
 
-  console.log(`Total failures after 3 attempts: ${failureCount}`);
-  const service = services['sports-service'];
+  console.log(`Total failures for replica ${replicaIndex + 1}: ${failureCount}`);
 
-  service.failureCounts[replicaIndex] += failureCount;
+  if (failureCount >= 3) {
+    console.log(`Circuit breaker tripped for replica ${replicaUrl}.\n`);
+    service.isBreakerOpen[replicaIndex] = true;
+    service.lastFailureTimes[replicaIndex] = Date.now();
+  }
 
-  console.log(`Failure count for replica ${replicaIndex}: ${service.failureCounts[replicaIndex]}`);
-
-  await handleCircuitBreaker(service, 'sports-service', replicaIndex);
+  return false;
 }
 
-// Endpoint to test all sports-service replicas
-async function testAllReplicas() {
-  const service = services['sports-service'];
-  for (let i = 0; i < service.urls.length; i++) {
-    console.log(`Testing replica ${i + 1} at URL: ${service.urls[i]}`);
-    await makeThreeRequests(service.urls[i], i);
+async function makeThreeRequests(serviceName, replicaIndex) {
+  const service = services[serviceName];
+  const replicaUrl = service.urls[replicaIndex];
+  let failureCount = 0;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      console.log(`Attempt ${attempt}: Sending request to ${replicaUrl} (Replica ${replicaIndex + 1})...`);
+
+      const response = await axios.get(`${replicaUrl}/simulate-failure`);
+
+      if (response.data.success === false || response.status !== 200) {
+        throw new Error("Simulated failure based on endpoint response");
+      }
+
+      console.log(`Attempt ${attempt} succeeded for replica ${replicaIndex + 1}.`);
+      service.failureCounts[replicaIndex] = 0;
+      return true;
+
+    } catch (error) {
+      console.error(`Attempt ${attempt} for replica ${replicaIndex + 1} failed: ${error.message}`);
+      failureCount++;
+      service.failureCounts[replicaIndex]++;
+    }
   }
+
+  console.log(`Total failures for replica ${replicaIndex + 1}: ${failureCount}`);
+
+  if (failureCount >= 3) {
+    console.log(`Circuit breaker tripped for replica ${replicaUrl}.\n`);
+    service.isBreakerOpen[replicaIndex] = true;
+    service.lastFailureTimes[replicaIndex] = Date.now();
+  }
+
+  return false;
+}
+
+async function makeThreeRequestsWithRemoval(serviceName, replicaIndex) {
+  const service = services[serviceName];
+  const replicaUrl = service.urls[replicaIndex];
+  let failureCount = 0;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      console.log(`Attempt ${attempt}: Sending request to ${replicaUrl} (Replica ${replicaIndex + 1})...`);
+
+      const response = await axios.get(`${replicaUrl}/simulate-failure`);
+
+      if (response.data.success === false || response.status !== 200) {
+        throw new Error("Simulated failure based on endpoint response");
+      }
+
+      console.log(`Attempt ${attempt} succeeded for replica ${replicaIndex + 1}.`);
+      service.failureCounts[replicaIndex] = 0;
+      return true;
+
+    } catch (error) {
+      console.error(`Attempt ${attempt} for replica ${replicaIndex + 1} failed: ${error.message}`);
+      failureCount++;
+      service.failureCounts[replicaIndex]++;
+    }
+  }
+
+  console.log(`Total failures for replica ${replicaIndex + 1}: ${failureCount}`);
+
+  if (failureCount >= 3) {
+    console.log(`Circuit breaker tripped for replica ${replicaUrl}.\n`);
+    service.isBreakerOpen[replicaIndex] = true;
+    service.lastFailureTimes[replicaIndex] = Date.now();
+    await handleCircuitBreaker(service, 'sports-service', replicaIndex);
+  }
+
+  return false;
 }
 
 // Health check function for services
@@ -267,16 +402,30 @@ async function checkServiceHealth(serviceName, serviceUrl) {
   }
 }
 
-// Periodically check the health of services
 setInterval(() => {
   Object.keys(services).forEach(serviceName => {
-    updateServiceUrls(serviceName);
+    const service = services[serviceName];
+    service.urls.forEach((_, index) => {
+      if (
+        service.isBreakerOpen[index] &&
+        Date.now() - service.lastFailureTimes[index] > COOLING_PERIOD
+      ) {
+        console.log(`Circuit breaker reset for replica ${index} of ${serviceName}.`);
+        service.isBreakerOpen[index] = false;
+        service.failureCounts[index] = 0;
+      }
+    });
   });
-}, 30000);
+}, 5000);
 
 (async () => {
-  await updateServiceUrls('sports-service');
-  await updateServiceUrls('user-service');
+  try {
+    console.log('Updating service URLs...');
+    await updateServiceUrls('sports-service');
+    await updateServiceUrls('user-service');
+  } catch (error) {
+    console.error('Error during initialization or testing:', error.message);
+  }
 })();
 
 // Helper function to get available service URL
@@ -294,23 +443,73 @@ function getAvailableService(serviceName) {
   }
 }
 
-app.get('/test-replicas', async (req, res) => {
+app.get('/test-replicas-with-removal', async (req, res) => {
+  const serviceName = 'sports-service';
   try {
-    const serviceName = 'sports-service';
     const service = services[serviceName];
-    
-    for (let i = 0; i < service.urls.length; i++) {
-      console.log(`Testing replica ${i + 1} at URL: ${service.urls[i]}`);
-      await makeThreeRequests(service.urls[i], i);
+
+    if (!service || !service.urls || service.urls.length === 0) {
+      throw new Error(`${serviceName} has no replicas configured. Please ensure the service is correctly initialized.`);
     }
 
-    res.json({ message: 'Replica testing completed' });
+    console.log(`Testing replicas for service: ${serviceName}`);
+
+    while (service.urls.length > 0) {
+      const replicaUrl = service.urls[0];
+      console.log(`Testing replica at URL: ${replicaUrl}`);
+
+      const success = await makeThreeRequestsWithRemoval(serviceName, 0);
+
+      if (success) {
+        console.log(`Replica succeeded: ${replicaUrl}`);
+        res.json({ message: `Replica succeeded: ${replicaUrl}` });
+        return;
+      }
+
+      console.log(`Replica failed after 3 attempts: ${replicaUrl}`);
+    }
+
+    console.error(`All replicas for ${serviceName} failed.`);
+    res.status(503).json({ message: `All replicas for ${serviceName} failed.` });
   } catch (error) {
-    console.error(`Error testing replicas: `, error.message);
-    res.status(500).json({ message: 'Replica testing failed' });
+    console.error(`Error testing replicas: ${error.message}`);
+    res.status(500).json({ message: `Error testing replicas: ${error.message}` });
   }
 });
 
+app.get('/test-replicas', async (req, res) => {
+  const serviceName = 'sports-service';
+  try {
+    const service = services[serviceName];
+
+    if (!service || !service.urls || service.urls.length === 0) {
+      throw new Error(`${serviceName} has no replicas configured. Please ensure the service is correctly initialized.`);
+    }
+
+    console.log(`Testing replicas for service: ${serviceName}`);
+
+    for (let i = 0; i < service.urls.length; i++) {
+      const replicaUrl = service.urls[i];
+      console.log(`Testing replica ${i + 1} at URL: ${replicaUrl}`);
+
+      const success = await makeThreeRequests(serviceName, i);
+
+      if (success) {
+        console.log(`Replica ${i + 1} succeeded.`);
+        res.json({ message: `Replica ${i + 1} succeeded.` });
+        return;
+      }
+
+      console.log(`Replica ${i + 1} failed after 3 attempts.`);
+    }
+
+    console.error(`All replicas for ${serviceName} failed.`);
+    res.status(503).json({ message: `All replicas for ${serviceName} failed.` });
+  } catch (error) {
+    console.error(`Error testing replicas: ${error.message}`);
+    res.status(500).json({ message: `Error testing replicas: ${error.message}` });
+  }
+});
 
 // Proxy for sport service
 app.use('/api/sports', async (req, res, next) => {
@@ -335,7 +534,6 @@ app.use('/api/sports', async (req, res, next) => {
     res.status(503).json({ message: error.message });
   }
 });
-
 
 // Proxy for user service
 app.use('/api/users', async (req, res, next) => {
@@ -374,5 +572,4 @@ app.get('/send-multiple-grpc-pings', (req, res) => {
 
 app.listen(8000, () => {
   console.log(`API Gateway running on port 8000`);
-  testAllReplicas();
 });

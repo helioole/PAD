@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 from pymongo import MongoClient
 import jwt
 from functools import wraps
@@ -6,6 +6,10 @@ import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 import os
 import unittest
+from prometheus_client import generate_latest, Counter, Gauge, CollectorRegistry
+import threading
+from bson.objectid import ObjectId
+
 
 app = Flask(__name__)
 
@@ -16,6 +20,13 @@ db = client['user_database']
 SECRET_KEY = 'your_secret_key'
 
 executor = ThreadPoolExecutor(max_workers=2)
+
+REQUEST_COUNT = Counter('user_requests_total', 'Total number of requests to user service', ['method', 'endpoint'])
+CURRENT_LOAD = Gauge('user_current_load', 'Current load of user service')
+
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    return Response(generate_latest(), mimetype="text/plain")
 
 # token for authentication
 def token_required(f):
@@ -39,7 +50,7 @@ def token_required(f):
 # Task timeout
 def long_running_registration_task(user_data):
     print("Simulating registration task...")
-    # time.sleep(6)
+    #time.sleep(6)
     db.users.insert_one({
         "username": user_data["username"],
         "password": user_data["password"],
@@ -51,6 +62,7 @@ def long_running_registration_task(user_data):
 # Register a user
 @app.route('/api/users/register', methods=['POST'])
 def register_user():
+    REQUEST_COUNT.labels('POST', '/api/users/register').inc()
     user_data = request.get_json()
 
     future = executor.submit(long_running_registration_task, user_data)
@@ -106,8 +118,20 @@ def update_notification_preferences(decoded_data):
     )
     return jsonify({"status": "success", "message": "Notification preferences updated"}), 200
 
+@app.route('/api/users/<user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    try:
+        result = db.users.delete_one({"_id": ObjectId(user_id)})
+        if result.deleted_count > 0:
+            return jsonify({"status": "success", "message": "User deleted successfully"}), 200
+        else:
+            return jsonify({"status": "error", "message": "User not found"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Failed to delete user: {str(e)}"}), 500
+
 @app.route('/status', methods=['GET'])
 def status():
+    REQUEST_COUNT.labels('GET', '/status').inc()
     return jsonify({"status": "User Management Service is running"}), 200
 
 if __name__ == '__main__':

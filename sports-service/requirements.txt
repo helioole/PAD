@@ -3,3 +3,4 @@ pymongo==3.11.4
 grpcio==1.50.0
 grpcio-tools==1.50.0
 protobuf<=5.0.0
+prometheus_client

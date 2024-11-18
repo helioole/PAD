@@ -2,10 +2,12 @@ import grpc
 from concurrent import futures
 import time
 import threading
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 from pymongo import MongoClient
 import sports_service_pb2
 import sports_service_pb2_grpc
+from prometheus_client import generate_latest, Counter, Gauge, CollectorRegistry
+from bson.objectid import ObjectId
 
 app = Flask(__name__)
 
@@ -14,6 +16,10 @@ client = MongoClient('mongodb://mongo:27017/')
 db = client['sports_database']
 
 CRITICAL_LOAD_THRESHOLD = 10
+
+REQUEST_COUNT = Counter('sports_requests_total', 'Total number of requests to sports service', ['method', 'endpoint'])
+CURRENT_LOAD = Gauge('sports_current_load', 'Current load of sports service')
+REGISTRY = CollectorRegistry()
 
 class SportsService(sports_service_pb2_grpc.SportsServiceServicer):
     def __init__(self):
@@ -34,6 +40,7 @@ class SportsService(sports_service_pb2_grpc.SportsServiceServicer):
             self.start_time = current_time
 
         self.load_counter += 1
+        CURRENT_LOAD.set(self.load_counter)
         print(f"Ping received: {request.message}. Current load: {self.load_counter}")
 
         response_message = f"Ping received: {request.message}, current load: {self.load_counter}"
@@ -48,6 +55,10 @@ def serve_grpc():
     server.start()
     server.wait_for_termination()
 
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    return Response(generate_latest(REGISTRY), mimetype="text/plain")
+
 # Status Endpoint
 @app.route('/status', methods=['GET'])
 def status():
@@ -56,6 +67,7 @@ def status():
 # Get ongoing sports events
 @app.route('/api/sports/ongoing-events', methods=['GET'])
 def get_ongoing_events():
+    REQUEST_COUNT.labels(request.method, request.path).inc()
     events = list(db.events.find({"event_status": "ongoing"}))
     events_data = [{"sport_category": event['sport_category'], "team_1": event['team_1'], 
                     "team_2": event['team_2'], "score_team_1": event['score_team_1'], 
@@ -98,6 +110,26 @@ def get_game_details(game_id):
             }
         }), 200
     return jsonify({"status": "error", "message": "Game not found"}), 404
+
+@app.route('/api/sports/events/<event_id>', methods=['DELETE'])
+def delete_event(event_id):
+    try:
+        result = db.events.delete_one({"_id": ObjectId(event_id)})
+        if result.deleted_count > 0:
+            return jsonify({"status": "success", "message": "Event deleted successfully"}), 200
+        else:
+            return jsonify({"status": "error", "message": "Event not found"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Failed to delete event: {str(e)}"}), 500
+
+@app.route('/simulate-failure', methods=['GET'])
+def simulate_failure():
+    should_fail = True
+
+    if should_fail:
+        return jsonify({"success": False, "message": "Simulated failure"}), 500
+    else:
+        return jsonify({"success": True, "message": "Request succeeded"}), 200
 
 def run_flask():
     print("Starting Flask app on port 5001...")
