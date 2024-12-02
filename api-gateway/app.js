@@ -312,43 +312,6 @@ async function makeThreeRequests(serviceName, replicaIndex) {
   return false;
 }
 
-async function makeThreeRequests(serviceName, replicaIndex) {
-  const service = services[serviceName];
-  const replicaUrl = service.urls[replicaIndex];
-  let failureCount = 0;
-
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      console.log(`Attempt ${attempt}: Sending request to ${replicaUrl} (Replica ${replicaIndex + 1})...`);
-
-      const response = await axios.get(`${replicaUrl}/simulate-failure`);
-
-      if (response.data.success === false || response.status !== 200) {
-        throw new Error("Simulated failure based on endpoint response");
-      }
-
-      console.log(`Attempt ${attempt} succeeded for replica ${replicaIndex + 1}.`);
-      service.failureCounts[replicaIndex] = 0;
-      return true;
-
-    } catch (error) {
-      console.error(`Attempt ${attempt} for replica ${replicaIndex + 1} failed: ${error.message}`);
-      failureCount++;
-      service.failureCounts[replicaIndex]++;
-    }
-  }
-
-  console.log(`Total failures for replica ${replicaIndex + 1}: ${failureCount}`);
-
-  if (failureCount >= 3) {
-    console.log(`Circuit breaker tripped for replica ${replicaUrl}.\n`);
-    service.isBreakerOpen[replicaIndex] = true;
-    service.lastFailureTimes[replicaIndex] = Date.now();
-  }
-
-  return false;
-}
-
 async function makeThreeRequestsWithRemoval(serviceName, replicaIndex) {
   const service = services[serviceName];
   const replicaUrl = service.urls[replicaIndex];

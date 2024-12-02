@@ -2,12 +2,22 @@ import json
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from typing import List
-import redis
+from rediscluster import RedisCluster
 
 app = FastAPI()
 
+startup_nodes = [
+    {"host": "redis-node-1", "port": "6379"},
+    {"host": "redis-node-2", "port": "6379"},
+    {"host": "redis-node-3", "port": "6379"},
+    {"host": "redis-node-4", "port": "6379"},
+    {"host": "redis-node-5", "port": "6379"},
+    {"host": "redis-node-6", "port": "6379"}
+]
+
 # Redis 
-redis_client = redis.Redis(host='redis', port=6379, decode_responses=True)
+redis_client = RedisCluster(startup_nodes=startup_nodes, decode_responses=True, skip_full_coverage_check=False)
+
 connected_users: List[WebSocket] = []
 
 # Redis subscribe to a channel
@@ -68,4 +78,3 @@ async def startup_event():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="localhost", port=3000)
-

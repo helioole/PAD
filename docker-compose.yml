@@ -63,7 +63,7 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - redis
+      - redis-cluster-init-node
     networks:
       - app-network
     deploy:
@@ -80,10 +80,105 @@ services:
     networks:
       - app-network
 
-  redis:
-    image: redis:6.0
+  # redis:
+  #   image: redis:6.0
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - app-network
+
+  redis-node-1:
+    image: bitnami/redis-cluster:latest
+    container_name: redis-node-1
+    environment:
+      - REDIS_NODES=redis-node-1,redis-node-2,redis-node-3,redis-node-4,redis-node-5,redis-node-6
+      - ALLOW_EMPTY_PASSWORD=yes
     ports:
       - "6379:6379"
+    networks:
+      - app-network
+    tmpfs:
+      - /bitnami/redis
+
+  redis-node-2:
+    image: bitnami/redis-cluster:latest
+    container_name: redis-node-2
+    environment:
+      - REDIS_NODES=redis-node-1,redis-node-2,redis-node-3,redis-node-4,redis-node-5,redis-node-6
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - "6380:6379"
+    networks:
+      - app-network
+    tmpfs:
+      - /bitnami/redis
+
+  redis-node-3:
+    image: bitnami/redis-cluster:latest
+    container_name: redis-node-3
+    environment:
+      - REDIS_NODES=redis-node-1,redis-node-2,redis-node-3,redis-node-4,redis-node-5,redis-node-6
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - "6381:6379"
+    networks:
+      - app-network
+    tmpfs:
+      - /bitnami/redis
+
+  redis-node-4:
+    image: bitnami/redis-cluster:latest
+    container_name: redis-node-4
+    environment:
+      - REDIS_NODES=redis-node-1,redis-node-2,redis-node-3,redis-node-4,redis-node-5,redis-node-6
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - "6382:6379"
+    networks:
+      - app-network
+    tmpfs:
+      - /bitnami/redis
+
+  redis-node-5:
+    image: bitnami/redis-cluster:latest
+    container_name: redis-node-5
+    environment:
+      - REDIS_NODES=redis-node-1,redis-node-2,redis-node-3,redis-node-4,redis-node-5,redis-node-6
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - "6383:6379"
+    networks:
+      - app-network
+    tmpfs:
+      - /bitnami/redis
+
+  redis-node-6:
+    image: bitnami/redis-cluster:latest
+    container_name: redis-node-6
+    environment:
+      - REDIS_NODES=redis-node-1,redis-node-2,redis-node-3,redis-node-4,redis-node-5,redis-node-6
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - "6384:6379"
+    networks:
+      - app-network
+    tmpfs:
+      - /bitnami/redis
+
+  redis-cluster-init-node:
+    container_name: redis-cluster-init-node
+    image: bitnami/redis-cluster:latest
+    entrypoint: >
+      /bin/bash -c '
+      until redis-cli -h redis-node-1 -p 6379 ping; do sleep 1; done &&
+      redis-cli --cluster create redis-node-1:6379 redis-node-2:6379 redis-node-3:6379 redis-node-4:6379 redis-node-5:6379 redis-node-6:6379 --cluster-replicas 1 --cluster-yes'
+    depends_on:
+      - redis-node-1
+      - redis-node-2
+      - redis-node-3
+      - redis-node-4
+      - redis-node-5
+      - redis-node-6
     networks:
       - app-network
 
